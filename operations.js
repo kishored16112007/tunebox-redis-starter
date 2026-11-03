@@ -15,6 +15,7 @@ export async function incrementPlays(trackId) {
   // TODO:
   //   Use INCR on the key `plays:${trackId}` and return the new count (a Number).
   //   Hint:  return await redis.incr(`plays:${trackId}`);
+  return await redis.incr(`plays:${trackId}`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -31,6 +32,13 @@ export async function getTrack(trackId) {
   //   4. save it for next time with a 60-second expiry:
   //        await redis.set(key, JSON.stringify(track), "EX", 60);
   //      then return { source: "db", track };
+  const key = `track:${trackId}`;
+  const cached = await redis.get(key);
+  if (cached) return { source: "cache", track: JSON.parse(cached) };
+  const track = await findTrackInDB(trackId);
+  if (!track) return { source: "db", track: null };
+  await redis.set(key, JSON.stringify(track), "EX", 60);
+  return { source: "db", track };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -42,12 +50,14 @@ export async function addLike(trackId) {
   //   Add 1 to this track's score in the sorted set `trending:tracks`
   //   using ZINCRBY, and return the new score as a Number.
   //   Hint:  return Number(await redis.zincrby("trending:tracks", 1, trackId));
+  return Number(await redis.zincrby("trending:tracks", 1, trackId));
 }
 
 export async function topTracks(n) {
   // TODO:
   //   Return the top n track ids, highest score first, as an array of ids.
   //   Hint:  return await redis.zrevrange("trending:tracks", 0, n - 1);
+  return await redis.zrevrange("trending:tracks", 0, n - 1);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -59,6 +69,8 @@ export async function issuePass(code, ttlSeconds) {
   //   Save the pass under `pass:${code}` with an expiry, in ONE atomic command:
   //     await redis.set(`pass:${code}`, "valid", "EX", ttlSeconds);
   //   Return the code.
+  await redis.set(`pass:${code}`, "valid", "EX", ttlSeconds);
+  return code;
 }
 
 export async function usePass(code) {
@@ -67,4 +79,30 @@ export async function usePass(code) {
   //     const raw = await redis.getdel(`pass:${code}`);
   //   If raw exists → return { ok: true };
   //   Otherwise     → return { ok: false, reason: "invalid_or_used" };
+  const raw = await redis.getdel(`pass:${code}`);
+  if (raw) return { ok: true };
+  return { ok: false, reason: "invalid_or_used" };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task 5 — Keep the cache honest (invalidation)
+// ─────────────────────────────────────────────────────────────────────────────
+export async function updateTrackTitle(trackId, newTitle) {
+  const db = await import("./db.js");
+  if (typeof db.updateTitle === "function") {
+    await db.updateTitle(trackId, newTitle);
+  }
+  return await redis.del(`track:${trackId}`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task 6 — Who's listening right now
+// ─────────────────────────────────────────────────────────────────────────────
+export async function markListening(userId) {
+  return await redis.sadd("listeners:online", userId);
+}
+
+export async function isListening(userId) {
+  const res = await redis.sismember("listeners:online", userId);
+  return res === 1;
 }

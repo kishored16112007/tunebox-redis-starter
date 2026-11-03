@@ -1,0 +1,33 @@
+> tunebox-redis@1.0.0 test
+> node test.js
+
+
+Task 1 — Count track plays (INCR)
+  plays after two increments: 2
+  PASS  first play returns 1
+  PASS  second play returns 2
+  PASS  the count is a Number
+
+Task 2 — Read a track through the cache (cache-aside + TTL)
+  first read source: db | second read source: cache
+  PASS  first read comes from the DB
+  PASS  first read returns the track
+  PASS  second read comes from the cache
+  PASS  unknown track returns null track
+  PASS  cached track has a TTL between 1 and 60s
+
+Task 3 — Most-liked leaderboard (sorted set)
+  top 2: ["2","1"]
+  PASS  addLike returns the new score as a Number
+  PASS  topTracks returns an array of ids
+  PASS  track 2 is ranked #1 (most likes)
+
+Task 4 — One-time listen pass (SET EX + GETDEL)
+  first use: {"ok":true} | second use: {"ok":false,"reason":"invalid_or_used"}
+  PASS  first use succeeds
+  PASS  second use fails (single-use)
+
+────────────────────────────────────────
+  RESULT: 13 passed, 0 failed
+────────────────────────────────────────
+✓ All tests passed!
